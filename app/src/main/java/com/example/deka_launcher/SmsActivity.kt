@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.deka_launcher.models.Contact
 import com.example.deka_launcher.ui.theme.DekaLauncherTheme
 import android.database.Cursor
 import android.provider.Telephony.Sms

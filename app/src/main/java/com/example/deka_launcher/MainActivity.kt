@@ -24,7 +24,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     LauncherScreen(
                         onSmsClick = { startActivity(Intent(this, SmsActivity::class.java)) },
-                        onPhoneClick = { startActivity(Intent(this, PhoneActivity::class.java)) }
+                        onPhoneClick = { startActivity(Intent(this, PhoneActivity::class.java)) },
+                        onContactsClick = { startActivity(Intent(this, ContactsActivity::class.java)) }
                     )
                 }
             }
@@ -35,7 +36,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun LauncherScreen(
     onSmsClick: () -> Unit,
-    onPhoneClick: () -> Unit
+    onPhoneClick: () -> Unit,
+    onContactsClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -53,7 +55,7 @@ fun LauncherScreen(
 
         LauncherButton(
             text = "Contacts",
-            onClick = { /* TODO: Implement contacts screen */ }
+            onClick = onContactsClick
         )
 
         LauncherButton(
