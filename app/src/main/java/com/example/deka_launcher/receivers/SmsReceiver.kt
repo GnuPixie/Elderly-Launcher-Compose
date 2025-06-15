@@ -31,6 +31,7 @@ class SmsReceiver : BroadcastReceiver() {
                     val updateIntent = Intent("com.example.deka_launcher.SMS_RECEIVED").apply {
                         putExtra("sender", sender)
                         putExtra("message", messageBody)
+                        putExtra("timestamp", System.currentTimeMillis())
                     }
                     context.sendBroadcast(updateIntent)
                     
@@ -41,7 +42,29 @@ class SmsReceiver : BroadcastReceiver() {
                 // This is a fallback for non-default SMS apps
                 val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
                 messages?.forEach { smsMessage ->
-                    Log.d("SmsReceiver", "Received SMS (non-default): ${smsMessage.originatingAddress}")
+                    val sender = smsMessage.originatingAddress ?: "Unknown"
+                    val messageBody = smsMessage.messageBody
+                    
+                    // Store the message in the system SMS database
+                    val contentValues = android.content.ContentValues().apply {
+                        put(Telephony.Sms.ADDRESS, sender)
+                        put(Telephony.Sms.BODY, messageBody)
+                        put(Telephony.Sms.DATE, System.currentTimeMillis())
+                        put(Telephony.Sms.READ, 0)
+                        put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+                    }
+                    
+                    context.contentResolver.insert(Telephony.Sms.CONTENT_URI, contentValues)
+                    
+                    // Broadcast the new message to update the UI
+                    val updateIntent = Intent("com.example.deka_launcher.SMS_RECEIVED").apply {
+                        putExtra("sender", sender)
+                        putExtra("message", messageBody)
+                        putExtra("timestamp", System.currentTimeMillis())
+                    }
+                    context.sendBroadcast(updateIntent)
+                    
+                    Log.d("SmsReceiver", "Received SMS (non-default) from $sender: $messageBody")
                 }
             }
         }

@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.update
 import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.RequiresApi
+import kotlinx.coroutines.delay
+//import androidx.compose.ui.DisposableEffect
 
 fun requestDefaultSmsRole(context: Context, resultLauncher: ActivityResultLauncher<Intent>) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -158,8 +160,16 @@ class SmsActivity : ComponentActivity() {
                         lastMessage = message,
                         date = System.currentTimeMillis()
                     )
+                } else {
+                    // If contact doesn't exist in the list, add it
+                    updatedList.add(Contact(
+                        name = phoneNumber,
+                        phoneNumber = phoneNumber,
+                        lastMessage = message,
+                        date = System.currentTimeMillis()
+                    ))
                 }
-                updatedList
+                updatedList.sortedByDescending { it.date }
             }
             
             // Broadcast the update
@@ -309,8 +319,37 @@ fun ConversationScreen(
     val context = LocalContext.current
     val messagesState by messages.collectAsState()
 
+    // Add a LaunchedEffect to periodically refresh messages
     LaunchedEffect(contact) {
         loadMessages(context, contact.phoneNumber, messages)
+        // Set up periodic refresh
+        while (true) {
+            delay(1000) // Refresh every second
+            loadMessages(context, contact.phoneNumber, messages)
+        }
+    }
+
+    // Add a LaunchedEffect to listen for new messages
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "com.example.deka_launcher.SMS_RECEIVED") {
+                    loadMessages(context!!, contact.phoneNumber, messages)
+                }
+            }
+        }
+        context.registerReceiver(
+            receiver,
+            IntentFilter("com.example.deka_launcher.SMS_RECEIVED"),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (e: Exception) {
+                Log.e("ConversationScreen", "Error unregistering receiver", e)
+            }
+        }
     }
 
     Column(
