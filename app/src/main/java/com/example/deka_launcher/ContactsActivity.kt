@@ -169,7 +169,8 @@ fun ContactsScreen(
                 ContactItem(
                     contact = contact,
                     onEdit = { onEditContact(contact) },
-                    onDelete = { onDeleteContact(contact) }
+                    onDelete = { onDeleteContact(contact) },
+                    onCall = { /* Implement call logic */ }
                 )
             }
         }
@@ -181,7 +182,8 @@ fun ContactsScreen(
 fun ContactItem(
     contact: Contact,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onCall: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -191,27 +193,46 @@ fun ContactItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(24.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = contact.name,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.headlineMedium
                 )
                 Text(
                     text = contact.phoneNumber,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete Contact",
-                    tint = MaterialTheme.colorScheme.error
-                )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = onCall,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Call,
+                        contentDescription = "Call Contact",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete Contact",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }

@@ -119,8 +119,8 @@ fun DialPad(
     onCall: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         val numbers = listOf(
@@ -132,30 +132,36 @@ fun DialPad(
 
         numbers.forEach { row ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 row.forEach { number ->
                     DialButton(
                         text = number,
-                        onClick = { onNumberClick(number) }
+                        onClick = { onNumberClick(number) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             DialButton(
                 text = "⌫",
-                onClick = onDelete
+                onClick = onDelete,
+                modifier = Modifier.weight(1f)
             )
             DialButton(
                 text = "Call",
                 onClick = onCall,
-                modifier = Modifier.size(80.dp)
+                modifier = Modifier.weight(2f)
             )
         }
     }
@@ -165,16 +171,21 @@ fun DialPad(
 fun DialButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier.size(70.dp)
+    modifier: Modifier = Modifier
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier,
-        shape = CircleShape
+        modifier = modifier
+            .fillMaxHeight(),
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        )
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.titleLarge
+            style = MaterialTheme.typography.displayLarge,
+            color = MaterialTheme.colorScheme.onPrimary
         )
     }
 } 
