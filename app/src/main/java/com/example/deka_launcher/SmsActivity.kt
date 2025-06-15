@@ -39,6 +39,7 @@ import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.delay
+import android.provider.ContactsContract
 //import androidx.compose.ui.DisposableEffect
 
 fun requestDefaultSmsRole(context: Context, resultLauncher: ActivityResultLauncher<Intent>) {
@@ -413,14 +414,13 @@ fun MessageItem(message: Message) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = message.sender,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (message.isFromMe) 
-                    MaterialTheme.colorScheme.onPrimary 
-                else 
-                    MaterialTheme.colorScheme.onSecondary
-            )
+            if (!message.isFromMe && message.sender.isNotEmpty()) {
+                Text(
+                    text = message.sender,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSecondary
+                )
+            }
             Text(
                 text = message.content,
                 style = MaterialTheme.typography.bodyLarge,
@@ -458,9 +458,12 @@ private fun loadConversations(context: android.content.Context, conversations: M
                     val date = it.getLong(it.getColumnIndexOrThrow(Telephony.Sms.DATE))
                     val read = it.getInt(it.getColumnIndexOrThrow(Telephony.Sms.READ)) == 1
 
+                    // Try to get contact name from phone book
+                    val contactName = getContactName(context, address)
+
                     val contact = contactMap.getOrPut(address) {
                         Contact(
-                            name = address,
+                            name = contactName ?: address,
                             phoneNumber = address,
                             lastMessage = body,
                             date = date,
@@ -499,6 +502,7 @@ private fun loadMessages(context: android.content.Context, phoneNumber: String, 
     )
 
     val messageList = mutableListOf<Message>()
+    val contactName = getContactName(context, phoneNumber)
     
     cursor?.use {
         while (it.moveToNext()) {
@@ -509,7 +513,7 @@ private fun loadMessages(context: android.content.Context, phoneNumber: String, 
 
             messageList.add(
                 Message(
-                    sender = address,
+                    sender = if (type == Telephony.Sms.MESSAGE_TYPE_SENT) "" else (contactName ?: address),
                     content = body,
                     isFromMe = type == Telephony.Sms.MESSAGE_TYPE_SENT,
                     timestamp = date
@@ -519,6 +523,38 @@ private fun loadMessages(context: android.content.Context, phoneNumber: String, 
     }
 
     messages.value = messageList
+}
+
+private fun getContactName(context: android.content.Context, phoneNumber: String): String? {
+    var contactName: String? = null
+    
+    context.contentResolver.query(
+        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+        arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        ),
+        null,
+        null,
+        null
+    )?.use { cursor ->
+        while (cursor.moveToNext()) {
+            val name = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))
+            val number = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
+            
+            // Normalize phone numbers for comparison
+            val normalizedNumber = number.replace(Regex("[^0-9+]"), "")
+            val normalizedPhoneNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
+            
+            if (normalizedNumber.endsWith(normalizedPhoneNumber) || 
+                normalizedPhoneNumber.endsWith(normalizedNumber)) {
+                contactName = name
+                break
+            }
+        }
+    }
+    
+    return contactName
 }
 
 data class Contact(

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.deka_launcher.models.Contact
 import com.example.deka_launcher.ui.theme.DekaLauncherTheme
+import kotlinx.coroutines.delay
 
 class ContactsActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
@@ -107,9 +108,20 @@ fun ContactsScreen(
     var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Load contacts initially
     LaunchedEffect(Unit) {
         loadContacts(context) { loadedContacts ->
             contacts = loadedContacts
+        }
+    }
+
+    // Set up periodic refresh
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000) // Refresh every second
+            loadContacts(context) { loadedContacts ->
+                contacts = loadedContacts
+            }
         }
     }
 
