@@ -15,11 +15,25 @@ class SmsReceiver : BroadcastReceiver() {
                 val sender = smsMessage.originatingAddress ?: "Unknown"
                 val messageBody = smsMessage.messageBody
                 
-                // Store the message in your app's database or handle it as needed
-                Log.d("SmsReceiver", "Received SMS from $sender: $messageBody")
+                // Store the message in the system SMS database
+                val contentValues = android.content.ContentValues().apply {
+                    put(Telephony.Sms.ADDRESS, sender)
+                    put(Telephony.Sms.BODY, messageBody)
+                    put(Telephony.Sms.DATE, System.currentTimeMillis())
+                    put(Telephony.Sms.READ, 0)
+                    put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+                }
                 
-                // You can also show a notification here
-                // TODO: Implement notification system for new messages
+                context.contentResolver.insert(Telephony.Sms.CONTENT_URI, contentValues)
+                
+                // Broadcast the new message to update the UI
+                val updateIntent = Intent("com.example.deka_launcher.SMS_RECEIVED").apply {
+                    putExtra("sender", sender)
+                    putExtra("message", messageBody)
+                }
+                context.sendBroadcast(updateIntent)
+                
+                Log.d("SmsReceiver", "Received SMS from $sender: $messageBody")
             }
         }
     }
