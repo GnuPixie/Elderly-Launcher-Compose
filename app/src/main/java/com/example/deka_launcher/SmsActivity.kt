@@ -28,8 +28,33 @@ import android.provider.Telephony.Sms
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import android.app.role.RoleManager
+import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.telephony.SmsManager
+import kotlinx.coroutines.flow.update
+import android.os.Build
+import androidx.activity.result.ActivityResultLauncher
+import androidx.annotation.RequiresApi
+
+fun requestDefaultSmsRole(context: Context, resultLauncher: ActivityResultLauncher<Intent>) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+        // Check if the app is already the default SMS app
+        if (!roleManager.isRoleHeld(RoleManager.ROLE_SMS)) {
+            // Create an intent to request the role
+            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS)
+            resultLauncher.launch(intent)
+        }
+    }
+    // For older APIs, you would use a different, more complex method.
+    // But targeting modern APIs, RoleManager is the standard.
+}
 
 class SmsActivity : ComponentActivity() {
+    private val conversations = MutableStateFlow<List<Contact>>(emptyList())
+    
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -38,10 +63,26 @@ class SmsActivity : ComponentActivity() {
         }
     }
 
+    private val smsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "com.example.deka_launcher.SMS_RECEIVED" -> {
+                    // Refresh the conversation list
+                    loadConversations(context!!, conversations)
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
             checkPermissions()
+            registerReceiver(
+                smsReceiver,
+                IntentFilter("com.example.deka_launcher.SMS_RECEIVED"),
+                Context.RECEIVER_NOT_EXPORTED
+            )
             setContent {
                 DekaLauncherTheme {
                     Surface(
@@ -49,7 +90,8 @@ class SmsActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.background
                     ) {
                         SmsScreen(
-                            onBackClick = { finish() }
+                            onBackClick = { finish() },
+                            conversations = conversations
                         )
                     }
                 }
@@ -59,13 +101,21 @@ class SmsActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(smsReceiver)
+        } catch (e: Exception) {
+            Log.e("SmsActivity", "Error unregistering receiver", e)
+        }
+    }
+
     private fun checkPermissions() {
         try {
             val permissions = arrayOf(
                 Manifest.permission.READ_SMS,
                 Manifest.permission.SEND_SMS,
-                Manifest.permission.RECEIVE_SMS,
-                //Manifest.permission.WRITE_SMS
+                Manifest.permission.RECEIVE_SMS
             )
 
             if (permissions.all { 
@@ -91,15 +141,47 @@ class SmsActivity : ComponentActivity() {
             Log.e("SmsActivity", "Error setting default SMS app", e)
         }
     }
+
+    public fun sendSms(context: Context, phoneNumber: String, message: String) {
+        try {
+            val smsManager = SmsManager.getDefault()
+            smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+            
+            // Add the sent message to the conversation immediately
+            conversations.update { currentList ->
+                val updatedList = currentList.toMutableList()
+                val contactIndex = updatedList.indexOfFirst { contact -> contact.phoneNumber == phoneNumber }
+                
+                if (contactIndex != -1) {
+                    val contact = updatedList[contactIndex]
+                    updatedList[contactIndex] = contact.copy(
+                        lastMessage = message,
+                        date = System.currentTimeMillis()
+                    )
+                }
+                updatedList
+            }
+            
+            // Broadcast the update
+            val updateIntent = Intent("com.example.deka_launcher.SMS_RECEIVED")
+            context.sendBroadcast(updateIntent)
+            
+        } catch (e: Exception) {
+            Log.e("SmsActivity", "Error sending SMS", e)
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SmsScreen(onBackClick: () -> Unit) {
+fun SmsScreen(
+    onBackClick: () -> Unit,
+    conversations: MutableStateFlow<List<Contact>>
+) {
     var showConversation by remember { mutableStateOf(false) }
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
     val context = LocalContext.current
-    val conversations = remember { MutableStateFlow<List<Contact>>(emptyList()) }
+    val conversationsState by conversations.collectAsState()
     
     LaunchedEffect(Unit) {
         try {
@@ -135,7 +217,7 @@ fun SmsScreen(onBackClick: () -> Unit) {
 
         if (!showConversation) {
             ConversationList(
-                conversations = conversations.collectAsState().value,
+                conversations = conversationsState,
                 onConversationClick = { contact ->
                     selectedContact = contact
                     showConversation = true
@@ -145,7 +227,10 @@ fun SmsScreen(onBackClick: () -> Unit) {
             selectedContact?.let { contact ->
                 ConversationScreen(
                     contact = contact,
-                    onBackClick = onBackClick
+                    onBackClick = onBackClick,
+                    onSendMessage = { message ->
+                        (context as? SmsActivity)?.sendSms(context, contact.phoneNumber, message)
+                    }
                 )
             }
         }
@@ -216,7 +301,8 @@ fun ConversationItem(
 @Composable
 fun ConversationScreen(
     contact: Contact,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onSendMessage: (String) -> Unit
 ) {
     var messageText by remember { mutableStateOf("") }
     val messages = remember { MutableStateFlow<List<Message>>(emptyList()) }
@@ -259,7 +345,7 @@ fun ConversationScreen(
             Button(
                 onClick = {
                     if (messageText.isNotBlank()) {
-                        sendSms(context, contact.phoneNumber, messageText)
+                        onSendMessage(messageText)
                         messageText = ""
                     }
                 },
@@ -393,14 +479,6 @@ private fun loadMessages(context: android.content.Context, phoneNumber: String, 
     }
 
     messages.value = messageList
-}
-
-private fun sendSms(context: android.content.Context, phoneNumber: String, message: String) {
-    val intent = Intent(Intent.ACTION_SENDTO).apply {
-        data = android.net.Uri.parse("smsto:$phoneNumber")
-        putExtra("sms_body", message)
-    }
-    context.startActivity(intent)
 }
 
 data class Contact(
